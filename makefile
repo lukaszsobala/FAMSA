@@ -3,9 +3,9 @@ all: famsa
 # *** REFRESH makefile utils
 include refresh.mk
 
-$(call INIT_SUBMODULES)
-$(call INIT_GLOBALS)
-$(call CHECK_OS_ARCH, $(PLATFORM))
+$(eval $(call INIT_SUBMODULES))
+$(eval $(call INIT_GLOBALS))
+$(eval $(call CHECK_OS_ARCH,$(PLATFORM)))
 
 
 # *** Project directories
