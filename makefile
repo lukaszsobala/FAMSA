@@ -7,19 +7,6 @@ $(call INIT_SUBMODULES)
 $(call INIT_GLOBALS)
 $(call CHECK_OS_ARCH, $(PLATFORM))
 
-# RISC-V specific override (must come after CHECK_OS_ARCH)
-# Usage:
-#   make PLATFORM=rv64g   -> generic scalar rv64g
-#   make PLATFORM=rv64gcv -> vector extension rv64gcv (placeholder macro SIMD_RVV)
-ifeq ($(ARCH_TYPE),riscv64)
-ifneq ($(findstring rv64gcv,$(PLATFORM)),)
-ARCH_FLAGS=-march=rv64gcv -mabi=lp64d -DARCH_RISCV -DSIMD_RVV
-$(info *** RISC-V rv64gcv with vector extension (SIMD_RVV placeholder) ***)
-else
-ARCH_FLAGS=-march=rv64g -mabi=lp64d -DARCH_RISCV
-$(info *** RISC-V rv64g generic (scalar fallback) ***)
-endif
-endif
 
 # *** Project directories
 $(call SET_SRC_OBJ_BIN,src,obj,bin)
@@ -43,6 +30,7 @@ $(call SET_FLAGS, $(TYPE))
 
 $(call SET_COMPILER_VERSION_ALLOWED, GCC, Linux_x86_64, 11, 20)
 $(call SET_COMPILER_VERSION_ALLOWED, GCC, Linux_aarch64, 11, 20)
+$(call SET_COMPILER_VERSION_ALLOWED, GCC, Linux_riscv64, 11, 20)
 $(call SET_COMPILER_VERSION_ALLOWED, GCC, Darwin_x86_64, 11, 13)
 $(call SET_COMPILER_VERSION_ALLOWED, GCC, Darwin_arm64, 11, 13)
 

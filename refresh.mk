@@ -618,37 +618,76 @@ define CHECK_OS_ARCH
 	$(if $(shell grep -q 'avx512' /proc/cpuinfo && echo yes),$(eval CPU_EXTENSIONS_DEFS+=-DSIMD_AVX512),)
 	$(if $(shell grep -q 'neon' /proc/cpuinfo && echo yes),$(eval CPU_EXTENSIONS_DEFS+=-DSIMD_NEON),)
 
-	$(if $(filter arm8,$(1)), \
-		$(eval ARCH_FLAGS:=-march=armv8-a -DARCH_ARM) \
-		$(info *** ARMv8 with NEON extensions ***), \
-		$(if $(filter m1,$(1)), \
-			$(eval ARCH_FLAGS:=-march=armv8.4-a -DARCH_ARM -DSIMD_NEON) \
-			$(info *** Apple M1 (or newer) with NEON extensions ***), \
-			$(if $(filter sse2,$(1)), \
-				$(eval ARCH_FLAGS:=-msse2 -m64 -DARCH_X64 -DSIMD_SSE2) \
-				$(info *** x86-64 with SSE2 extensions ***), \
-				$(if $(filter avx,$(1)), \
-					$(eval ARCH_FLAGS:=-mavx -m64 -DARCH_X64 -DSIMD_AVX) \
-					$(info *** x86-64 with AVX extensions ***), \
-					$(if $(filter avx2,$(1)), \
-						$(eval ARCH_FLAGS:=-mavx2 -m64 -DARCH_X64 -DSIMD_AVX2) \
-						$(info *** x86-64 with AVX2 extensions ***), \
-						$(if $(filter avx512,$(1)), \
-							$(eval ARCH_FLAGS:=-mavx512f -mavx512dq -m64 -DARCH_X64 -DSIMD_AVX512) \
-							$(info *** x86-64 with AVX512 extensions ***), \
-							$(if $(filter generic,$(1)), \
-								$(if $(filter x86_64,$(ARCH_TYPE)), \
-									$(eval ARCH_FLAGS:=-DARCH_X64) \
-									$(info *** Unspecified platform - using generic compilation for x86_64 ***), \
-									$(eval ARCH_FLAGS:=-DARCH_ARM) \
-									$(info *** Unspecified platform - using generic compilation for ARM ***)), \
-								$(if $(filter x86_64,$(ARCH_TYPE)), \
-									$(eval ARCH_FLAGS:=-march=native -DARCH_X64) \
-									$(eval ARCH_FLAGS+=$(CPU_EXTENSIONS_DEFS)) \
-									$(info *** Unspecified platform - using native compilation for x86_64 ***), \
-									$(eval ARCH_FLAGS:=-march=native -DARCH_ARM -DSIMD_NEON) \
-									$(eval ARCH_FLAGS+=$(CPU_EXTENSIONS_DEFS)) \
-									$(info *** Unspecified platform - using native compilation for ARM ***)))))))))
+	# Platform-specific override based on provided PLATFORM argument $(1)
+	# RISC-V first (rv64g / rv64gcv)
+	$(if $(filter rv64gcv,$(1)), \
+		$(eval ARCH_FLAGS:=-march=rv64gcv -mabi=lp64d -DARCH_RISCV -DSIMD_RVV) \
+		$(info *** RISC-V rv64gcv with vector extension (SIMD_RVV) ***), \
+		$(if $(filter rv64g,$(1)), \
+			$(eval ARCH_FLAGS:=-march=rv64g -mabi=lp64d -DARCH_RISCV) \
+			$(info *** RISC-V rv64g generic (scalar) ***), \
+			$(if $(filter arm8,$(1)), \
+				$(eval ARCH_FLAGS:=-march=armv8-a -DARCH_ARM) \
+				$(info *** ARMv8 with NEON extensions ***), \
+				$(if $(filter m1,$(1)), \
+					$(eval ARCH_FLAGS:=-march=armv8.4-a -DARCH_ARM -DSIMD_NEON) \
+					$(info *** Apple M1 (or newer) with NEON extensions ***), \
+					$(if $(filter sse2,$(1)), \
+						$(eval ARCH_FLAGS:=-msse2 -m64 -DARCH_X64 -DSIMD_SSE2) \
+						$(info *** x86-64 with SSE2 extensions ***), \
+						$(if $(filter avx,$(1)), \
+							$(eval ARCH_FLAGS:=-mavx -m64 -DARCH_X64 -DSIMD_AVX) \
+							$(info *** x86-64 with AVX extensions ***), \
+							$(if $(filter avx2,$(1)), \
+								$(eval ARCH_FLAGS:=-mavx2 -m64 -DARCH_X64 -DSIMD_AVX2) \
+								$(info *** x86-64 with AVX2 extensions ***), \
+								$(if $(filter avx512,$(1)), \
+									$(eval ARCH_FLAGS:=-mavx512f -mavx512dq -m64 -DARCH_X64 -DSIMD_AVX512) \
+									$(info *** x86-64 with AVX512 extensions ***), \
+									$(if $(filter generic,$(1)), \
+										$(if $(filter x86_64,$(ARCH_TYPE)), \
+											$(eval ARCH_FLAGS:=-DARCH_X64) \
+											$(info *** Unspecified platform - using generic compilation for x86_64 ***), \
+											$(if $(filter arm%,$(ARCH_TYPE)), \
+												$(eval ARCH_FLAGS:=-DARCH_ARM -DSIMD_NEON) \
+												$(info *** Unspecified platform - using generic compilation for ARM ***), \
+												$(if $(filter riscv64,$(ARCH_TYPE)), \
+													$(eval ARCH_FLAGS:=-DARCH_RISCV) \
+													$(info *** Unspecified platform - using generic compilation for RISC-V ***), \
+												) \
+											) \
+										, \
+										$(if $(filter x86_64,$(ARCH_TYPE)), \
+											$(eval ARCH_FLAGS:=-march=native -DARCH_X64) \
+											$(eval ARCH_FLAGS+=$(CPU_EXTENSIONS_DEFS)) \
+											$(info *** Unspecified platform - using native compilation for x86_64 ***), \
+											$(if $(filter arm%,$(ARCH_TYPE)), \
+												$(eval ARCH_FLAGS:=-march=native -DARCH_ARM -DSIMD_NEON) \
+												$(eval ARCH_FLAGS+=$(CPU_EXTENSIONS_DEFS)) \
+												$(info *** Unspecified platform - using native compilation for ARM ***), \
+												$(if $(filter riscv64,$(ARCH_TYPE)), \
+													$(eval ARCH_FLAGS:=-march=rv64g -mabi=lp64d -DARCH_RISCV) \
+													$(info *** Unspecified platform - using native compilation for RISC-V rv64g ***), \
+												) \
+											) \
+										) \
+									) \
+								) \
+							) \
+						) \
+					) \
+				) \
+			) \
+		) \
+	)
+
+	# Auto-detect RISC-V vector extension if PLATFORM did not force SIMD_RVV
+	$(if $(filter riscv64,$(ARCH_TYPE)), \
+		$(if $(and $(filter-out rv64gcv,$(1)),$(shell grep -qi 'rvv' /proc/cpuinfo && echo yes)), \
+			$(eval ARCH_FLAGS:=-march=rv64gcv -mabi=lp64d -DARCH_RISCV -DSIMD_RVV) \
+			$(info *** RISC-V vector (rvv) detected; enabling SIMD_RVV ***), \
+		) \
+	)
 	
 	$(if $(filter Darwin,$(OS_TYPE)), \
 		$(eval SDK_PATH:=$(shell $(CXX) -v 2>&1 | grep -- '--with-sysroot' | sed -E 's/.*--with-sysroot=([^ ]+).*/\1/')) \
