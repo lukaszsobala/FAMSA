@@ -7,6 +7,20 @@ $(call INIT_SUBMODULES)
 $(call INIT_GLOBALS)
 $(call CHECK_OS_ARCH, $(PLATFORM))
 
+# RISC-V specific override (must come after CHECK_OS_ARCH)
+# Usage:
+#   make PLATFORM=rv64g   -> generic scalar rv64g
+#   make PLATFORM=rv64gcv -> vector extension rv64gcv (placeholder macro SIMD_RVV)
+ifeq ($(ARCH_TYPE),riscv64)
+ifneq ($(findstring rv64gcv,$(PLATFORM)),)
+ARCH_FLAGS=-march=rv64gcv -mabi=lp64d -DARCH_RISCV -DSIMD_RVV
+$(info *** RISC-V rv64gcv with vector extension (SIMD_RVV placeholder) ***)
+else
+ARCH_FLAGS=-march=rv64g -mabi=lp64d -DARCH_RISCV
+$(info *** RISC-V rv64g generic (scalar fallback) ***)
+endif
+endif
+
 # *** Project directories
 $(call SET_SRC_OBJ_BIN,src,obj,bin)
 3RD_PARTY_DIR := ./libs
@@ -62,7 +76,7 @@ $(OBJ_SIMD_DIR)/utils_avx.cpp.o: $(SRC_SIMD_DIR)/utils_avx.cpp
 $(OBJ_SIMD_DIR)/utils_avx2.cpp.o: $(SRC_SIMD_DIR)/utils_avx2.cpp
 	@mkdir -p $(OBJ_SIMD_DIR)
 	$(CXX) $(CPP_FLAGS_AVX2) $(OPTIMIZATION_FLAGS) $(ARCH_FLAGS) $(INCLUDE_DIRS) -MMD -MF $@.d -c $< -o $@
-else
+else ifeq ($(ARCH_TYPE),aarch64)
 SRC_SIMD := $(SRC_SIMD_DIR)/lcsbp_neon_intr.cpp $(SRC_SIMD_DIR)/utils_neon.cpp 
 $(OBJ_SIMD_DIR)/lcsbp_neon_intr.cpp.o: $(SRC_SIMD_DIR)/lcsbp_neon_intr.cpp
 	@mkdir -p $(OBJ_SIMD_DIR)
@@ -70,6 +84,12 @@ $(OBJ_SIMD_DIR)/lcsbp_neon_intr.cpp.o: $(SRC_SIMD_DIR)/lcsbp_neon_intr.cpp
 $(OBJ_SIMD_DIR)/utils_neon.cpp.o: $(SRC_SIMD_DIR)/utils_neon.cpp
 	@mkdir -p $(OBJ_SIMD_DIR)
 	$(CXX) $(CPP_FLAGS_NEON) $(OPTIMIZATION_FLAGS) $(ARCH_FLAGS) $(INCLUDE_DIRS) -MMD -MF $@.d -c $< -o $@
+else ifeq ($(ARCH_TYPE),riscv64)
+# No SIMD implementation yet for RISC-V; use classic scalar paths only
+SRC_SIMD :=
+else
+# Fallback for any other arch: no SIMD
+SRC_SIMD :=
 endif
 
 OBJ_SIMD := $(patsubst $(SRC_SIMD_DIR)/%.cpp, $(OBJ_SIMD_DIR)/%.cpp.o, $(SRC_SIMD))
